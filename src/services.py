@@ -73,36 +73,22 @@ def search_items(
     query: str,
     field: str | None = None
 ) -> set[str]:
-    result = set()
-    Knowledge = load_knowledge()
-    for item in Knowledge:
-        if field is not None:
-            attribute_value = getattr(item, field)
-            if isinstance(attribute_value, str):
-                for item2 in attribute_value.split():
-                    if query.lower() in item2.lower():
-                        result.add(item.item_id)
-            elif isinstance(attribute_value, list):
-                for item2 in attribute_value:
-                    for item3 in item2.split():
-                        if query.lower() in item3.lower():
-                            result.add(item.item_id)
-            else:
-                if str(attribute_value) == query:
-                    result.add(item.item_id)
-        else:
-            for attribute_value in vars(item).values():
-                if attribute_value:
-                    if isinstance(attribute_value, str):
-                        for item2 in attribute_value.split():
-                            if query.lower() in item2.lower():
-                                result.add(item.item_id)
-                    elif isinstance(attribute_value, list):
-                        for item2 in attribute_value:
-                            for item3 in item2.split():
-                                if query.lower() in item3.lower():
-                                    result.add(item.item_id)
-                    else:
-                        if str(attribute_value) == query:
-                            result.add(item.item_id)
-    return result
+    matches: set[str] = set()
+    query = query.lower()
+    for item in load_knowledge():
+        attributes = [getattr(item, field)] if field else vars(item).values()
+
+        for value in attributes:
+            if isinstance(value, str):
+                if query in value.lower():
+                    matches.add(item.item_id)
+
+            elif isinstance(value, list):
+                for element in value:
+                    if query in element.lower():
+                        matches.add(item.item_id)
+
+            elif query == str(value).lower():
+                matches.add(item.item_id)
+
+    return matches
