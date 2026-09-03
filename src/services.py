@@ -4,6 +4,7 @@ from exceptions import ItemNotFoundError
 from models import KnowledgeItem
 from storage import load_knowledge, save_knowledge
 from validators import validate_all
+from collections import Counter
 
 
 def add_item(knowledge_item: KnowledgeItem) -> None:
@@ -92,3 +93,11 @@ def search_items(
                 matches.add(item.item_id)
 
     return matches
+
+def get_stats():
+    knowledge = load_knowledge()
+    total_items = sum(1 for item in knowledge)
+    categories = Counter(item.category for item in knowledge)
+    tags = Counter(item2 for item in knowledge for item2 in item.tags)
+    sources = Counter(item.source for item in knowledge)
+    return total_items, categories, tags, sources

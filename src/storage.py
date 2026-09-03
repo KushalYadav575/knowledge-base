@@ -1,21 +1,35 @@
 import json
+from pathlib import Path
 
 from exceptions import DataCorruptionError, StorageError
 from models import KnowledgeItem
 
+DEFAULT_FILE = (
+    Path(__file__).resolve().parent.parent
+    / "data"
+    / "knowledge.json"
+)
 
-def save_knowledge(note: list[KnowledgeItem], filename: str="knowledge.json") -> None:
+
+def save_knowledge(
+    note: list[KnowledgeItem],
+    filename: Path = DEFAULT_FILE,
+) -> None:
     note_data = [item.to_dict() for item in note]
+
     with open(filename, "w", encoding="utf-8") as file:
         json.dump(note_data, file)
 
 
-def load_knowledge(filename: str="knowledge.json") -> list[KnowledgeItem]:
+def load_knowledge(
+    filename: Path = DEFAULT_FILE,
+) -> list[KnowledgeItem]:
     try:
-        with open(filename, "r", encoding="utf-8") as f:
-            file_data = json.load(f)
+        with open(filename, "r", encoding="utf-8") as file:
+            file_data = json.load(file)
 
         note: list[KnowledgeItem] = []
+
         for item in file_data:
             obj = KnowledgeItem.from_dict(item)
             note.append(obj)
@@ -23,7 +37,7 @@ def load_knowledge(filename: str="knowledge.json") -> list[KnowledgeItem]:
         return note
 
     except FileNotFoundError:
-        raise StorageError("no file found ")
+        raise StorageError("No file found")
+
     except json.JSONDecodeError:
-        raise DataCorruptionError("failed to parse data")
-    return []
+        raise DataCorruptionError("Failed to parse data")
