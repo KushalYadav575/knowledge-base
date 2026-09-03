@@ -1,10 +1,11 @@
-from datetime import date
+import datetime
+from collections import Counter
+from zoneinfo import ZoneInfo
 
 from exceptions import ItemNotFoundError
 from models import KnowledgeItem
 from storage import load_knowledge, save_knowledge
 from validators import validate_all
-from collections import Counter
 
 
 def add_item(knowledge_item: KnowledgeItem) -> None:
@@ -59,7 +60,7 @@ def update_item(
             if source is not None:
                 item.source = source
             validate_all(item)
-            item.updated_at = date.today()
+            item.updated_at = datetime.datetime.now(tz=ZoneInfo("Asia/Kolkata")).date()
             save_knowledge(knowledge)
             return item
 
@@ -96,7 +97,7 @@ def search_items(
 
 def get_stats():
     knowledge = load_knowledge()
-    total_items = sum(1 for item in knowledge)
+    total_items = len(knowledge)
     categories = Counter(item.category for item in knowledge)
     tags = Counter(item2 for item in knowledge for item2 in item.tags)
     sources = Counter(item.source for item in knowledge)

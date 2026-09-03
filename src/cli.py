@@ -1,5 +1,6 @@
 import argparse
-from datetime import date
+import datetime
+from zoneinfo import ZoneInfo
 
 import services
 from exceptions import KnowledgeBaseError
@@ -142,7 +143,7 @@ stats_parser = subparsers.add_parser(
 )
 
 def add_command(args):
-    today = date.today()
+    today = datetime.datetime.now(tz=ZoneInfo("Asia/Kolkata")).date()
 
     knowledge = KnowledgeItem(
         title=args.title,
