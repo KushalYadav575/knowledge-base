@@ -1,7 +1,9 @@
 import argparse
 from collections import Counter
 
-from knowledge_base_cli import cli, pytest, services
+import pytest
+
+from knowledge_base_cli import cli, services
 from knowledge_base_cli.exceptions import ItemNotFoundError
 from knowledge_base_cli.models import KnowledgeItem
 

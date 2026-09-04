@@ -5,9 +5,7 @@ from .exceptions import DataCorruptionError
 from .models import KnowledgeItem
 
 DEFAULT_FILE = (
-    Path(__file__).resolve().parent.parent
-    / "data"
-    / "knowledge.json"
+    Path(__file__).resolve().parents[2] / "data" / "knowledge.json"
 )
 
 
