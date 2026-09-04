@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -95,7 +95,7 @@ def test_date_field_rejects_non_date_values(validator, value):
 
 
 def test_datetime_is_accepted_because_it_is_a_date_subclass():
-    validate_created_at(datetime(2026, 1, 15, 9, 30, tzinfo=datetime.UTC))
+    validate_created_at(datetime(2026, 1, 15, 9, 30, tzinfo=UTC))
 
 
 class TestValidateAll:
