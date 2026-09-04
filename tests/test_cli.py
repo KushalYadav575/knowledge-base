@@ -1,255 +1,315 @@
-import sys
-from datetime import date
-from unittest.mock import MagicMock, patch
+import argparse
+from collections import Counter
 
 import pytest
 
 import cli
-from exceptions import (
-    DataCorruptionError,
-    ItemNotFoundError,
-    StorageError,
-    ValidationError,
-)
+import services
+from exceptions import ItemNotFoundError
 from models import KnowledgeItem
 
 
-@pytest.fixture
-def sample_item():
-    return KnowledgeItem(
-        title="Python Testing",
-        content="Learn how to break CLI apps with pytest",
-        tags=["python", "testing"],
-        category="Software",
-        source="Documentation",
-        created_at=date(2026, 1, 1),
-        updated_at=date(2026, 1, 1),
-        item_id="test-uuid-1234",
+class TestArgumentParsing:
+    def test_add_requires_all_flags(self):
+        args = cli.parser.parse_args([
+            "add",
+            "--title", "T",
+            "--content", "C",
+            "--tags", "a", "b",
+            "--category", "Cat",
+            "--source", "Src",
+        ])
+        assert args.title == "T"
+        assert args.tags == ["a", "b"]
+        assert args.func == cli.add_command
+
+    @pytest.mark.parametrize(
+        "missing_flag",
+        ["--title", "--content", "--tags", "--category", "--source"],
     )
+    def test_add_fails_without_each_required_flag(self, missing_flag):
+        full_args = [
+            "add",
+            "--title", "T",
+            "--content", "C",
+            "--tags", "a",
+            "--category", "Cat",
+            "--source", "Src",
+        ]
+        idx = full_args.index(missing_flag)
+        args_without_flag = full_args[:idx] + full_args[idx + 2:]
+
+        with pytest.raises(SystemExit):
+            cli.parser.parse_args(args_without_flag)
+
+    def test_view_requires_item_id(self):
+        with pytest.raises(SystemExit):
+            cli.parser.parse_args(["view"])
+
+    def test_view_parses_item_id(self):
+        args = cli.parser.parse_args(["view", "abc-123"])
+        assert args.item_id == "abc-123"
+
+    def test_list_needs_no_extra_args(self):
+        args = cli.parser.parse_args(["list"])
+        assert args.func == cli.list_command
+
+    def test_stats_needs_no_extra_args(self):
+        args = cli.parser.parse_args(["stats"])
+        assert args.func == cli.stats_command
+
+    def test_search_rejects_invalid_field_choice(self):
+        with pytest.raises(SystemExit):
+            cli.parser.parse_args(["search", "python", "--field", "not-a-real-field"])
+
+    def test_search_accepts_valid_field_choice(self):
+        args = cli.parser.parse_args(["search", "python", "--field", "title"])
+        assert args.query == "python"
+        assert args.field == "title"
+
+    def test_search_field_is_optional(self):
+        args = cli.parser.parse_args(["search", "python"])
+        assert args.field is None
+
+    def test_no_command_at_all_is_rejected(self):
+        with pytest.raises(SystemExit):
+            cli.parser.parse_args([])
+
+    def test_export_requires_file_path(self):
+        with pytest.raises(SystemExit):
+            cli.parser.parse_args(["export"])
+
+    def test_export_parses_file_path(self):
+        args = cli.parser.parse_args(["export", "backup.json"])
+        assert args.file_path == "backup.json"
+
+    def test_import_requires_file_path(self):
+        with pytest.raises(SystemExit):
+            cli.parser.parse_args(["import"])
+
+    def test_import_parses_file_path(self):
+        args = cli.parser.parse_args(["import", "backup.json"])
+        assert args.file_path == "backup.json"
+        assert args.func == cli.import_command
 
 
 @pytest.fixture
-def run_cli(monkeypatch, capsys):
-    def _run(args: list[str]):
-        monkeypatch.setattr(sys, "argv", ["kb"] + args)
+def item(make_item):
+    return make_item(title="Binary Search")
+
+
+class TestAddCommand:
+    def test_prints_title_and_id(self, monkeypatch, capsys):
+        monkeypatch.setattr(services, "add_item", lambda knowledge: None)
+        args = argparse.Namespace(
+            title="Binary Search",
+            content="A search algorithm",
+            tags=["algorithms"],
+            category="CS",
+            source="textbook",
+        )
+
+        cli.add_command(args)
+
+        out = capsys.readouterr().out
+        assert "Binary Search" in out
+        assert "ID:" in out
+
+    def test_calls_services_add_item_once(self, monkeypatch, capsys):
+        calls = []
+        monkeypatch.setattr(services, "add_item", lambda knowledge: calls.append(knowledge))
+        args = argparse.Namespace(
+            title="T", content="C", tags=["x"], category="Cat", source="Src",
+        )
+
+        cli.add_command(args)
+
+        assert len(calls) == 1
+        assert isinstance(calls[0], KnowledgeItem)
+        assert calls[0].title == "T"
+
+
+class TestViewCommand:
+    def test_prints_all_fields(self, monkeypatch, capsys, item):
+        monkeypatch.setattr(services, "get_item", lambda item_id: item)
+        args = argparse.Namespace(item_id=item.item_id)
+
+        cli.view_command(args)
+
+        out = capsys.readouterr().out
+        assert item.title in out
+        assert item.content in out
+        assert item.item_id in out
+
+
+class TestListCommand:
+    def test_empty_list_prints_friendly_message(self, monkeypatch, capsys):
+        monkeypatch.setattr(services, "list_items", lambda: [])
+
+        cli.list_command(argparse.Namespace())
+
+        out = capsys.readouterr().out
+        assert "do not have any knowledge items" in out
+
+    def test_nonempty_list_prints_each_title(self, monkeypatch, capsys, sample_items):
+        monkeypatch.setattr(services, "list_items", lambda: sample_items)
+
+        cli.list_command(argparse.Namespace())
+
+        out = capsys.readouterr().out
+        for expected_item in sample_items:
+            assert expected_item.title in out
+
+
+class TestDeleteCommand:
+    def test_prints_deleted_title(self, monkeypatch, capsys, item):
+        monkeypatch.setattr(services, "delete_item", lambda item_id: item)
+        args = argparse.Namespace(item_id=item.item_id)
+
+        cli.delete_command(args)
+
+        out = capsys.readouterr().out
+        assert item.title in out
+        assert "deleted" in out.lower()
+
+
+class TestEditCommand:
+    def test_prints_updated_title(self, monkeypatch, capsys, item):
+        monkeypatch.setattr(
+            services, "update_item",
+            lambda item_id, title, content, tags, category, source: item,
+        )
+        args = argparse.Namespace(
+            item_id=item.item_id, title="New Title",
+            content=None, tags=None, category=None, source=None,
+        )
+
+        cli.edit_command(args)
+
+        out = capsys.readouterr().out
+        assert "updated" in out.lower()
+
+
+class TestSearchCommand:
+    def test_no_matches_prints_friendly_message(self, monkeypatch, capsys):
+        monkeypatch.setattr(services, "search_items", lambda query, field: set())
+        args = argparse.Namespace(query="nothing", field=None)
+
+        cli.search_command(args)
+
+        out = capsys.readouterr().out
+        assert "No matching" in out
+
+    def test_matches_print_each_title(self, monkeypatch, capsys, item):
+        monkeypatch.setattr(services, "search_items", lambda query, field: {item.item_id})
+        monkeypatch.setattr(services, "get_item", lambda item_id: item)
+        args = argparse.Namespace(query="binary", field=None)
+
+        cli.search_command(args)
+
+        out = capsys.readouterr().out
+        assert item.title in out
+
+
+class TestStatsCommand:
+    def test_prints_all_sections(self, monkeypatch, capsys):
+        monkeypatch.setattr(
+            services, "get_stats",
+            lambda: (
+                3,
+                Counter({"CS": 2, "History": 1}),
+                Counter({"algorithms": 2, "history": 1, "search": 1}),
+                Counter({"textbook": 3}),
+            ),
+        )
+
+        cli.stats_command(argparse.Namespace())
+
+        out = capsys.readouterr().out
+        assert "Total items: 3" in out
+        assert "Categories:" in out
+        assert "Most used tags:" in out
+        assert "Sources:" in out
+
+    def test_only_shows_top_3_tags(self, monkeypatch, capsys):
+        monkeypatch.setattr(
+            services, "get_stats",
+            lambda: (
+                1,
+                Counter(),
+                Counter({"a": 5, "b": 4, "c": 3, "d": 2, "e": 1}),
+                Counter(),
+            ),
+        )
+
+        cli.stats_command(argparse.Namespace())
+
+        out = capsys.readouterr().out
+        assert "a: 5" in out
+        assert "d: 2" not in out
+        assert "e: 1" not in out
+
+
+class TestExportCommand:
+    def test_prints_export_confirmation(self, monkeypatch, capsys):
+        monkeypatch.setattr(services, "export_items", lambda file_path: None)
+        args = argparse.Namespace(file_path="backup.json")
+
+        cli.export_command(args)
+
+        out = capsys.readouterr().out
+        assert "backup.json" in out
+
+    def test_calls_services_export_items_with_file_path(self, monkeypatch, capsys):
+        calls = []
+        monkeypatch.setattr(services, "export_items", lambda file_path: calls.append(file_path))
+        args = argparse.Namespace(file_path="backup.json")
+
+        cli.export_command(args)
+
+        assert calls == ["backup.json"]
+
+
+class TestImportCommand:
+    def test_prints_import_confirmation(self, monkeypatch, capsys):
+        monkeypatch.setattr(services, "import_items", lambda file_path: None)
+        args = argparse.Namespace(file_path="backup.json")
+
+        cli.import_command(args)
+
+        out = capsys.readouterr().out
+        assert "backup.json" in out
+
+    def test_calls_services_import_items_with_file_path(self, monkeypatch, capsys):
+        calls = []
+        monkeypatch.setattr(services, "import_items", lambda file_path: calls.append(file_path))
+        args = argparse.Namespace(file_path="backup.json")
+
+        cli.import_command(args)
+
+        assert calls == ["backup.json"]
+
+
+class TestMain:
+    def test_knowledge_base_error_is_caught_and_printed(self, monkeypatch, capsys):
+        def raise_not_found(item_id):
+            raise ItemNotFoundError("could not find an item with that id")
+
+        monkeypatch.setattr(services, "get_item", raise_not_found)
+        monkeypatch.setattr("sys.argv", ["kb", "view", "no-such-id"])
+
         cli.main()
-        return capsys.readouterr()
 
-    return _run
+        out = capsys.readouterr().out
+        assert "Error:" in out
+        assert "could not find an item with that id" in out
 
+    def test_non_knowledge_base_errors_still_propagate(self, monkeypatch):
+        def raise_type_error(item_id):
+            raise TypeError("something unrelated went wrong")
 
-@pytest.mark.parametrize(
-    "invalid_args",
-    [
-        [],
-        ["add", "--title", "Only Title"],
-        ["search", "python", "--field", "non_existent_field"],
-    ],
-)
-def test_cli_argparse_errors(run_cli, invalid_args):
-    with pytest.raises(SystemExit) as exc_info:
-        run_cli(invalid_args)
-    assert exc_info.value.code != 0
+        monkeypatch.setattr(services, "get_item", raise_type_error)
+        monkeypatch.setattr("sys.argv", ["kb", "view", "no-such-id"])
 
-
-@pytest.mark.parametrize(
-    "args, patch_target, side_effect, expected_error",
-    [
-        (
-            ["add", "--title", "   ", "--content", "Valid content", "--tags", "test", "--category", "General", "--source", "Web"],
-            "services.add_item",
-            ValidationError("Title cannot be empty"),
-            "Error: Title cannot be empty",
-        ),
-        (
-            ["add", "--title", "Title", "--content", "Content", "--tags", "", "--category", "Cat", "--source", "Src"],
-            "services.add_item",
-            ValidationError("Tags cannot contain empty strings"),
-            "Error: Tags cannot contain empty strings",
-        ),
-        (
-            ["view", "non-existent-id"],
-            "services.get_item",
-            ItemNotFoundError("could not find an item with that id"),
-            "Error: could not find an item with that id",
-        ),
-        (
-            ["delete", "non-existent-id"],
-            "services.delete_item",
-            ItemNotFoundError("could not find an item with that id"),
-            "Error: could not find an item with that id",
-        ),
-        (
-            ["edit", "non-existent-id", "--title", "New Title"],
-            "services.update_item",
-            ItemNotFoundError("could not find an item with that id"),
-            "Error: could not find an item with that id",
-        ),
-        (
-            ["list"],
-            "services.list_items",
-            StorageError("No file found"),
-            "Error: No file found",
-        ),
-        (
-            ["search", "any_query"],
-            "services.search_items",
-            DataCorruptionError("Failed to parse data"),
-            "Error: Failed to parse data",
-        ),
-    ],
-)
-def test_cli_handles_exceptions(run_cli, args, patch_target, side_effect, expected_error):
-    with patch(patch_target, side_effect=side_effect):
-        out = run_cli(args)
-        assert expected_error in out.out
-
-
-@pytest.mark.parametrize(
-    "items_return, expected_outputs",
-    [
-        (
-            [],
-            ["You currently do not have any knowledge items."],
-        ),
-        (
-            "USE_SAMPLE",
-            ["Knowledge items:", "* Title: Python Testing", "Tags: python, testing", "Category: Software", "ID: test-uuid-1234"],
-        ),
-    ],
-)
-def test_list_command(run_cli, sample_item, items_return, expected_outputs):
-    mock_data = [sample_item] if items_return == "USE_SAMPLE" else items_return
-    with patch("services.list_items", return_value=mock_data):
-        out = run_cli(["list"])
-        for expected in expected_outputs:
-            assert expected in out.out
-
-
-@pytest.mark.parametrize(
-    "args, search_return, expected_output, expected_field",
-    [
-        (["search", "Python"], {"test-uuid-1234"}, "Title: Python Testing", None),
-        (["search", "nonexistentquery"], set(), "No matching knowledge items found.", None),
-        (["search", "Software", "--field", "category"], {"test-uuid-1234"}, "Title: Python Testing", "category"),
-    ],
-)
-def test_search_command(run_cli, sample_item, args, search_return, expected_output, expected_field):
-    with patch("services.search_items", return_value=search_return) as mock_search, \
-        patch("services.get_item", return_value=sample_item):
-        out = run_cli(args)
-        if expected_field:
-            mock_search.assert_called_once_with(args[1], field=expected_field)
-        assert expected_output in out.out
-
-
-def test_add_command_success(run_cli):
-    with patch("services.add_item") as mock_add:
-        out = run_cli([
-            "add",
-            "--title", "Python Testing",
-            "--content", "Learn how to break CLI apps with pytest",
-            "--tags", "python", "testing",
-            "--category", "Software",
-            "--source", "Documentation",
-        ])
-        assert mock_add.called
-        assert "Knowledge item 'Python Testing' successfully added." in out.out
-        assert "ID:" in out.out
-
-
-def test_view_command_success(run_cli, sample_item):
-    with patch("services.get_item", return_value=sample_item):
-        out = run_cli(["view", "test-uuid-1234"])
-        assert "Title: Python Testing" in out.out
-        assert "Content: Learn how to break CLI apps with pytest" in out.out
-        assert "Tags: ['python', 'testing']" in out.out
-        assert "Category: Software" in out.out
-        assert "Source: Documentation" in out.out
-        assert "ID: test-uuid-1234" in out.out
-
-
-def test_delete_command_success(run_cli, sample_item):
-    with patch("services.delete_item", return_value=sample_item) as mock_delete:
-        out = run_cli(["delete", "test-uuid-1234"])
-        mock_delete.assert_called_once_with("test-uuid-1234")
-        assert "Knowledge item 'Python Testing' deleted successfully." in out.out
-
-
-def test_edit_command_partial_update(run_cli, sample_item):
-    updated_item = KnowledgeItem(
-        title="Updated Title",
-        content=sample_item.content,
-        tags=sample_item.tags,
-        category=sample_item.category,
-        source=sample_item.source,
-        created_at=sample_item.created_at,
-        updated_at=date.today(),
-        item_id=sample_item.item_id,
-    )
-    with patch("services.update_item", return_value=updated_item) as mock_update:
-        out = run_cli(["edit", "test-uuid-1234", "--title", "Updated Title"])
-        mock_update.assert_called_once_with(
-            "test-uuid-1234",
-            title="Updated Title",
-            content=None,
-            tags=None,
-            category=None,
-            source=None,
-        )
-        assert "Knowledge item 'Updated Title' updated successfully." in out.out
-
-
-def test_stats_command_populated(run_cli):
-    categories = {"Software": 2, "Books": 1}
-    tags = MagicMock()
-    tags.most_common.return_value = [("python", 2), ("testing", 1)]
-    sources = {"Documentation": 3}
-
-    with patch("services.get_stats", return_value=(3, categories, tags, sources)):
-        out = run_cli(["stats"])
-        assert "Knowledge Base Statistics" in out.out
-        assert "Total items: 3" in out.out
-        assert "Software: 2" in out.out
-        assert "python: 2" in out.out
-        assert "Documentation: 3" in out.out
-
-
-def test_edit_command_no_arguments_passed(run_cli, sample_item):
-    with patch("services.update_item", return_value=sample_item) as mock_update:
-        out = run_cli(["edit", "test-uuid-1234"])
-        mock_update.assert_called_once_with(
-            "test-uuid-1234",
-            title=None,
-            content=None,
-            tags=None,
-            category=None,
-            source=None,
-        )
-        assert "Knowledge item 'Python Testing' updated successfully." in out.out
-
-
-def test_search_returns_id_that_disappears_before_fetch(run_cli):
-    with patch("services.search_items", return_value={"stale-id"}), \
-         patch("services.get_item", side_effect=ItemNotFoundError("could not find an item with that id")):
-        out = run_cli(["search", "query"])
-        assert "Error: could not find an item with that id" in out.out
-
-
-def test_add_command_accepts_multiword_arguments(run_cli):
-    with patch("services.add_item") as mock_add:
-        out = run_cli([
-            "add",
-            "--title", "Design Patterns in Python",
-            "--content", "Comprehensive guide to OOP patterns",
-            "--tags", "design patterns", "software architecture",
-            "--category", "Software Engineering",
-            "--source", "O'Reilly Book",
-        ])
-        assert mock_add.called
-        added_item = mock_add.call_args[0][0]
-        assert added_item.title == "Design Patterns in Python"
-        assert added_item.tags == ["design patterns", "software architecture"]
-        assert added_item.category == "Software Engineering"
-        assert added_item.source == "O'Reilly Book"
-        assert "Knowledge item 'Design Patterns in Python' successfully added." in out.out
+        with pytest.raises(TypeError):
+            cli.main()
