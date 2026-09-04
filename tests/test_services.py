@@ -213,15 +213,7 @@ class TestExportItems:
             rows = list(csv.DictReader(f))
         assert len(rows) == len(sample_items)
 
-    @pytest.mark.xfail(
-        reason=(
-            "Known bug: export_items() has no 'else' branch for an "
-            "unsupported extension, so it silently writes nothing instead "
-            "of raising exceptions.ImportExportError (which exists but is "
-            "never imported/used in services.py)."
-        ),
-        strict=False,
-    )
+
     def test_export_with_unsupported_extension_raises(self, fake_db, sample_item, tmp_path):
         fake_db.append(sample_item)
         out_path = tmp_path / "export.txt"
@@ -267,16 +259,7 @@ class TestImportItems:
         assert len(ids) == len(set(ids)), "duplicate item_id survived import"
         assert len(fake_db) == 2
 
-    @pytest.mark.xfail(
-        reason=(
-            "Known bug: import_items() only defines list_knowledge inside "
-            "the .json/.csv branches. An unsupported extension falls "
-            "through both, so list_knowledge is never assigned and the "
-            "function raises UnboundLocalError instead of "
-            "exceptions.ImportExportError."
-        ),
-        strict=False,
-    )
+
     def test_import_with_unsupported_extension_raises(self, fake_db, tmp_path):
         bad_path = tmp_path / "import.txt"
         bad_path.write_text("not usable", encoding="utf-8")
