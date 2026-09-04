@@ -2,9 +2,9 @@ import argparse
 import datetime
 from zoneinfo import ZoneInfo
 
-import services
-from exceptions import KnowledgeBaseError
-from models import KnowledgeItem
+from . import services
+from .exceptions import KnowledgeBaseError
+from .models import KnowledgeItem
 
 parser = argparse.ArgumentParser(
     prog="kb",

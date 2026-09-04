@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from exceptions import DataCorruptionError, StorageError
-from storage import load_knowledge, save_knowledge
+from knowledge_base_cli.exceptions import DataCorruptionError, StorageError
+from knowledge_base_cli.storage import load_knowledge, save_knowledge
 
 
 class TestSaveAndLoadRoundTrip:
@@ -43,10 +43,12 @@ class TestSaveAndLoadRoundTrip:
 
 
 class TestLoadErrors:
-    def test_missing_file_raises_storage_error(self, tmp_path):
+    def test_missing_file_returns_empty_list(self, tmp_path):
         missing_path = tmp_path / "does_not_exist.json"
-        with pytest.raises(StorageError):
-            load_knowledge(filename=missing_path)
+
+        result = load_knowledge(filename=missing_path)
+
+        assert result == []
 
     def test_corrupted_json_raises_data_corruption_error(self, tmp_path):
         bad_file = tmp_path / "corrupted.json"

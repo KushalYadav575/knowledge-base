@@ -1,6 +1,6 @@
 from datetime import date
 
-from models import KnowledgeItem
+from knowledge_base_cli.models import KnowledgeItem
 
 
 class TestItemIdGeneration:

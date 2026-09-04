@@ -3,9 +3,13 @@ import json
 
 import pytest
 
-import services
-from exceptions import ImportExportError, ItemNotFoundError, ValidationError
-from models import KnowledgeItem
+from knowledge_base_cli import services
+from knowledge_base_cli.exceptions import (
+    ImportExportError,
+    ItemNotFoundError,
+    ValidationError,
+)
+from knowledge_base_cli.models import KnowledgeItem
 
 
 @pytest.fixture
@@ -166,7 +170,7 @@ class TestSearchItems:
 class TestGetStats:
     def test_total_items_count(self, fake_db, sample_items):
         fake_db.extend(sample_items)
-        total, categories, tags, sources = services.get_stats()
+        total, _categories, _tags, _sources = services.get_stats()
         assert total == len(sample_items)
 
     def test_categories_are_counted_per_item(self, fake_db, sample_items):
@@ -183,7 +187,7 @@ class TestGetStats:
         assert tags["biology"] == 1
 
     def test_stats_on_empty_db(self, fake_db):
-        total, categories, tags, sources = services.get_stats()
+        total, categories, tags, _sources = services.get_stats()
         assert total == 0
         assert sum(categories.values()) == 0
         assert sum(tags.values()) == 0

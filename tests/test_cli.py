@@ -1,12 +1,9 @@
 import argparse
 from collections import Counter
 
-import pytest
-
-import cli
-import services
-from exceptions import ItemNotFoundError
-from models import KnowledgeItem
+from knowledge_base_cli import cli, pytest, services
+from knowledge_base_cli.exceptions import ItemNotFoundError
+from knowledge_base_cli.models import KnowledgeItem
 
 
 class TestArgumentParsing:
@@ -144,7 +141,7 @@ class TestViewCommand:
 
 class TestListCommand:
     def test_empty_list_prints_friendly_message(self, monkeypatch, capsys):
-        monkeypatch.setattr(services, "list_items", lambda: [])
+        monkeypatch.setattr(services, "list_items", list)
 
         cli.list_command(argparse.Namespace())
 

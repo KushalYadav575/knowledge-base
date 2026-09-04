@@ -6,10 +6,10 @@ from collections import Counter
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from exceptions import ItemNotFoundError
-from models import KnowledgeItem
-from storage import load_knowledge, save_knowledge
-from validators import validate_all
+from .exceptions import ImportExportError, ItemNotFoundError
+from .models import KnowledgeItem
+from .storage import load_knowledge, save_knowledge
+from .validators import validate_all
 
 
 def add_item(knowledge_item: KnowledgeItem) -> None:
@@ -68,7 +68,7 @@ def update_item(
             save_knowledge(knowledge)
             return item
 
-    raise ItemNotFoundError("could not find an item with that id")\
+    raise ItemNotFoundError("could not find an item with that id")
 
 
 def list_items() -> list[KnowledgeItem]:
@@ -146,6 +146,8 @@ def export_items(file_path):
                     "created_at": item.created_at,
                     "updated_at": item.updated_at,
                 })
+    else:
+        raise ImportExportError("File type must be .csv or .json")
 
 
 def import_items(file_path):
@@ -167,11 +169,14 @@ def import_items(file_path):
             reader = csv.DictReader(f)
 
             for row in reader:
-                row["tags"] = row["tags"].split(", ")
+                row["tags"] = row["tags"].split(", ") if row["tags"] else []
 
                 list_knowledge.append(
                     KnowledgeItem.from_dict(row)
                 )
+
+    else:
+        raise ImportExportError("File type must be .csv or .json")
 
     knowledge = load_knowledge()
 
@@ -181,5 +186,5 @@ def import_items(file_path):
                 item.item_id = str(uuid.uuid4())
                 break
 
-    list_knowledge.extend(knowledge)
-    save_knowledge(list_knowledge)
+    knowledge.extend(list_knowledge)
+    save_knowledge(knowledge)

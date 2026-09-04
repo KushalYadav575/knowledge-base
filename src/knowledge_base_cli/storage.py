@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from exceptions import DataCorruptionError, StorageError
-from models import KnowledgeItem
+from .exceptions import DataCorruptionError
+from .models import KnowledgeItem
 
 DEFAULT_FILE = (
     Path(__file__).resolve().parent.parent
@@ -37,7 +37,7 @@ def load_knowledge(
         return note
 
     except FileNotFoundError:
-        raise StorageError("No file found")
+        return []
 
     except json.JSONDecodeError:
         raise DataCorruptionError("Failed to parse data")

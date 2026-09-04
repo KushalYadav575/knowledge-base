@@ -7,7 +7,7 @@ sys.path.insert(0, str(SRC_DIR))
 
 import pytest
 
-from models import KnowledgeItem
+from knowledge_base_cli.models import KnowledgeItem
 
 
 @pytest.fixture
@@ -28,15 +28,15 @@ def make_item(today):
     """
 
     def _make_item(**overrides) -> KnowledgeItem:
-        defaults = dict(
-            title="Binary Search",
-            content="A divide-and-conquer search algorithm on sorted data.",
-            tags=["algorithms", "search"],
-            category="Computer Science",
-            source="CLRS textbook",
-            created_at=today,
-            updated_at=today,
-        )
+        defaults = {
+        "title": "Binary Search",
+        "content": "A divide-and-conquer search algorithm on sorted data.",
+        "tags": ["algorithms", "search"],
+        "category": "Computer Science",
+        "source": "CLRS textbook",
+        "created_at": today,
+        "updated_at": today,
+        }
         defaults.update(overrides)
         return KnowledgeItem(**defaults)
 

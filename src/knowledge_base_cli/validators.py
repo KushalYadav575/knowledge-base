@@ -1,7 +1,7 @@
 from datetime import date
 
-from exceptions import ValidationError
-from models import KnowledgeItem
+from .exceptions import ValidationError
+from .models import KnowledgeItem
 
 
 def validate_title(title: str) -> None:
