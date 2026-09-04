@@ -1,5 +1,9 @@
+import csv
 import datetime
+import json
+import uuid
 from collections import Counter
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from exceptions import ItemNotFoundError
@@ -102,3 +106,80 @@ def get_stats():
     tags = Counter(item2 for item in knowledge for item2 in item.tags)
     sources = Counter(item.source for item in knowledge)
     return total_items, categories, tags, sources
+
+
+def export_items(file_path):
+    path = Path(file_path)
+    knowledge = load_knowledge()
+
+    if path.suffix.lower() == ".json":
+        list_knowledge = [item.to_dict() for item in knowledge]
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(list_knowledge, f)
+
+    elif path.suffix.lower() == ".csv":
+        fieldnames = [
+            "item_id",
+            "title",
+            "content",
+            "tags",
+            "category",
+            "source",
+            "created_at",
+            "updated_at",
+        ]
+
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+
+            writer.writeheader()
+
+            for item in knowledge:
+                writer.writerow({
+                    "item_id": item.item_id,
+                    "title": item.title,
+                    "content": item.content,
+                    "tags": ", ".join(item.tags),
+                    "category": item.category,
+                    "source": item.source,
+                    "created_at": item.created_at,
+                    "updated_at": item.updated_at,
+                })
+
+
+def import_items(file_path):
+    path = Path(file_path)
+
+    if path.suffix.lower() == ".json":
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        list_knowledge = [
+            KnowledgeItem.from_dict(dictionary)
+            for dictionary in data
+        ]
+
+    elif path.suffix.lower() == ".csv":
+        list_knowledge = []
+
+        with open(path, "r", encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+
+            for row in reader:
+                row["tags"] = row["tags"].split(", ")
+
+                list_knowledge.append(
+                    KnowledgeItem.from_dict(row)
+                )
+
+    knowledge = load_knowledge()
+
+    for item in list_knowledge:
+        for item2 in knowledge:
+            if item.item_id == item2.item_id:
+                item.item_id = str(uuid.uuid4())
+                break
+
+    list_knowledge.extend(knowledge)
+    save_knowledge(list_knowledge)

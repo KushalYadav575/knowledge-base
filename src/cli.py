@@ -142,6 +142,26 @@ stats_parser = subparsers.add_parser(
     help="gives stats of all knowledge items",
 )
 
+export_parser = subparsers.add_parser(
+    "export",
+    help="export already existing knowledge data"
+)
+
+import_parser = subparsers.add_parser(
+    "import",
+    help="import already existing knowledge data"
+)
+
+export_parser.add_argument(
+    "file_path",
+    help="path to the file where the data is exported"
+)
+
+import_parser.add_argument(
+    "file_path",
+    help="the path of the file where the data to be imported is stored"
+)
+
 def add_command(args):
     today = datetime.datetime.now(tz=ZoneInfo("Asia/Kolkata")).date()
 
@@ -240,6 +260,16 @@ def stats_command(args):
         print(f"  {key}: {value}")
 
 
+def export_command(args):
+    services.export_items(args.file_path)
+    print(f"your data has been exported to {args.file_path}")
+
+
+def import_command(args):
+    services.import_items(args.file_path)
+    print(f"your data has been imported to {args.file_path}")
+
+
 add_parser.set_defaults(func=add_command)
 view_parser.set_defaults(func=view_command)
 list_parser.set_defaults(func=list_command)
@@ -247,6 +277,8 @@ delete_parser.set_defaults(func=delete_command)
 edit_parser.set_defaults(func=edit_command)
 search_parser.set_defaults(func=search_command)
 stats_parser.set_defaults(func=stats_command)
+export_parser.set_defaults(func=export_command)
+import_parser.set_defaults(func=import_command)
 
 
 def main():
